@@ -10,7 +10,8 @@ Algorithms for CRISPR off-target search in the genome
 
 Version 5.1
 
-Created by AMICHAI MALLE & ELIAV COHEN
+Created by Amichai Malle & Eliav Cohen
+with help of Dr. Yaron Orenshtein & Mr. Ofir Yaish
 
 NAME
 	Off Target Finder - A tool to find off-target sites for CRISPR/Cas9
