@@ -1,15 +1,19 @@
 #include <stdio.h>
 #include <strings.h>
+#include <string.h>
 #include <stdlib.h>
 #include <math.h>
-#include <ctype.h> // for lower case only
-#include <time.h> // for time measurement
+#include <dirent.h>
+#include <ctype.h>
+#include <time.h>
 
 //--------------------------------------------
 //        Definition of Constants
 //--------------------------------------------
 // run parameters
 #define MAX_LINE_SIZE 100
+#define MAX_FILE_COUNT 50
+#define MAX_FILE_NAME_SIZE 50
 #define DEFAULT_MAX_CHROMOSOME_SIZE 300000000
 
 // pattern parameters
@@ -26,7 +30,6 @@
 //structs
 typedef struct {
     int ChromosomePosition;
-    int ChromosomeNum;
     int Distance;
     int Bulge;
     int Mismatch;
@@ -36,6 +39,7 @@ typedef struct {
     char *SiteAlignment;
     char *GuideAlignment;
     char *PamAlignment;
+    char ChromosomeName[MAX_FILE_NAME_SIZE];
     struct OffTarget *NextOffTarget;
 } OffTarget;
 
@@ -66,16 +70,16 @@ typedef struct {
 
 typedef struct {
     char *Text;
+    char Name[MAX_FILE_NAME_SIZE];
     int TextInx;
     int Length;
-    int ChromosomeNum;
 } ChromosomeInfo;
 
 
 //--------------------------------------------
 //        Global variables
 //--------------------------------------------
-int NumOfChromosomes = 0;
+//int NumOfChromosomes = 0;
 int NumOfGuides = 0;
 int NumOfOffTargets = 0;
 unsigned long MsbMaskVectorConst = 0;
@@ -86,16 +90,20 @@ int max_bulge = -1;
 int max_distance = -1;
 // file & memory parameters
 char *output_file_path = "./pam_output.txt";
-char *chromosome_file_path = "./chr1.txt";
+char *chromosome_file_path = "./chr38/";
 char *guide_file_path = "./guides.txt";
+char** chromosome_file_names;
+int num_of_chromosome_files = 0;
 long int max_chromosome_size = DEFAULT_MAX_CHROMOSOME_SIZE;
 
 //--------------------------------------------
 //        Prototypes
 //--------------------------------------------
 // Genome Read
-FILE *OpenNextChromosomeFile();
-int ReadChromosome(ChromosomeInfo *Chromosome);
+char** getFileNamesInDirectory(const char* directoryPath, int* fileCount);
+//FILE *OpenNextChromosomeFile();
+//int ReadChromosomeFile(ChromosomeInfo *Chromosome);
+int ReadChromosome(ChromosomeInfo *Chromosome, char *ChrFileName);
 //Pam Read and Initialize
 void ReadPamInfo(char *PamRead, Pam *PamInfo);
 void InitializePamInfoMaskVectors(Pam *PamInfo, int Reverse);
@@ -189,15 +197,20 @@ int main(int argc, char* argv[]){
     clock_t chr_start;
     double elapsed;
     ChromosomeInfo *Chromosome = (ChromosomeInfo *) malloc(sizeof(ChromosomeInfo));
+    Chromosome->Text = (char *) malloc(max_chromosome_size * sizeof(char));
     Guide **guideLst = InitializeGuidesInfo();
     OffTarget *OffTargetHead = NULL;
 
-    while(ReadChromosome(Chromosome) == 0){ // for each chromosome
+    chromosome_file_names = getFileNamesInDirectory(chromosome_file_path, &num_of_chromosome_files);
+
+    //while(ReadChromosome(Chromosome) == 0){ // for each chromosome
+    for (int chrNum = 0; chrNum < num_of_chromosome_files; chrNum++) {
+        ReadChromosome(Chromosome, chromosome_file_names[chrNum]);
         chr_start = clock();
-        printf("Start search in Chromosome %d\n", Chromosome->ChromosomeNum);
+        printf("Start search in Chromosome %s\n", Chromosome->Name);
         OffFinderMainLoop(guideLst, Chromosome, PamInfo, &OffTargetHead);
         elapsed = (double) (clock() - chr_start) / CLOCKS_PER_SEC;
-        printf("Chromosome %d search time: %f seconds\n\n",Chromosome->ChromosomeNum, elapsed);
+        printf("Chromosome %s search time: %f seconds\n\n", chromosome_file_names[chrNum], elapsed);
     }
 
     elapsed = (double) (clock() - start) / CLOCKS_PER_SEC;
@@ -212,34 +225,59 @@ int main(int argc, char* argv[]){
 //        Genome Read functions
 //--------------------------------------------
 
-FILE *OpenNextChromosomeFile() {
-    char currentChrNum[20];
-    sprintf(currentChrNum, "%d", NumOfChromosomes+1);
-    char *FilePath = (char *)malloc(sizeof(char)* strlen(chromosome_file_path) + strlen(currentChrNum) - 2);
-    strncpy(FilePath,chromosome_file_path,strlen(chromosome_file_path)-5);
-    sprintf(FilePath,"%s%s.txt",FilePath,currentChrNum);
-    FILE *ChrFile = fopen(FilePath, "r");
-    if (ChrFile == NULL && NumOfChromosomes == 0) {
-        printf("Error: 1st Chromosome file not found\n"
-               "1st File name expected to be 'chr1.txt'\n"
-               "File Name provide was %s\n",chromosome_file_path);
+char** getFileNamesInDirectory(const char* directoryPath, int* fileCount) {
+    DIR* directory;
+    struct dirent* entry;
+    int len;
+    char* fileName;
+    directory = opendir(directoryPath);
+    if (directory == NULL) {
+        printf("Unable to open the directory.\n");
+        return NULL;
+    }
+    // Allocate memory for the file names
+    char** fileNames = (char**)malloc(MAX_FILE_COUNT * sizeof(char*));
+    int count = 0;
+    while ((entry = readdir(directory)) != NULL) {
+        if (entry->d_type == DT_REG) { // Check if the entry is a regular file
+            fileName = entry->d_name;
+            len = strlen(entry->d_name);
+            if (len > 3 && strcmp(&fileName[len - 3], ".fa") == 0) {
+                fileNames[count] = (char *) malloc(strlen(entry->d_name) + 1);
+                strcpy(fileNames[count], entry->d_name);
+                count++;
+            }
+        }
+    }
+    *fileCount = count;
+    closedir(directory);
+    return fileNames;
+}
+
+FILE *OpenFastaFile(ChromosomeInfo *Chromosome, const char *filePath){
+    FILE *ChrFile = fopen(filePath, "r");
+    char line[MAX_LINE_SIZE];
+    if (ChrFile == NULL) {
+        printf("Error: Chromosome file not found\n"
+               "File Name provide was %s\n",filePath);
         exit(1);
     }
-    free(FilePath);
-    if (ChrFile != NULL) {
-        NumOfChromosomes++;
+    fgets(line, sizeof(line), ChrFile); //skip first line
+    if (line[0] != '>') {
+        printf("Error: Chromosome file not in fasta format\n"
+               "File Name provide was %s\n",filePath);
+        exit(1);
     }
     return ChrFile;
 }
 
-int ReadChromosome(ChromosomeInfo *Chromosome) {
-    FILE *ChrFile = OpenNextChromosomeFile();
-    if (ChrFile == NULL) {
-        return -1;
-    }
-    Chromosome->Text = (char *) malloc(max_chromosome_size * sizeof(char));
+int ReadChromosome(ChromosomeInfo *Chromosome, char *ChrFileName) {
+    char filePath[300]; // Assuming a maximum file path length of 256 characters
+    sprintf(filePath, "%s/%s", chromosome_file_path, ChrFileName);
+    FILE *ChrFile = OpenFastaFile(Chromosome, filePath);
+    strncpy(Chromosome->Name, ChrFileName, strlen(ChrFileName));
     Chromosome->TextInx = 0;
-    Chromosome->ChromosomeNum = NumOfChromosomes;
+    //Chromosome->ChromosomeNum = NumOfChromosomes;
     char lineBuffer[MAX_LINE_SIZE];
     int j = 0;
     while (fscanf(ChrFile, "%[^\n]c", lineBuffer) != EOF) { //read until new line
@@ -249,23 +287,23 @@ int ReadChromosome(ChromosomeInfo *Chromosome) {
                 case 'A':
                     Chromosome->Text[Chromosome->TextInx++] =  0x08;
                     break;
+                case 'a':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x08;
+                    break;
                 case 'C':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x04;
+                    break;
+                case 'c':
                     Chromosome->Text[Chromosome->TextInx++] =  0x04;
                     break;
                 case 'G':
                     Chromosome->Text[Chromosome->TextInx++] =  0x02;
                     break;
-                case 'T':
-                    Chromosome->Text[Chromosome->TextInx++] =  0x01;
-                    break;
-                case 'a':
-                    Chromosome->Text[Chromosome->TextInx++] =  0x08;
-                    break;
-                case 'c':
-                    Chromosome->Text[Chromosome->TextInx++] =  0x04;
-                    break;
                 case 'g':
                     Chromosome->Text[Chromosome->TextInx++] =  0x02;
+                    break;
+                case 'T':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x01;
                     break;
                 case 't':
                     Chromosome->Text[Chromosome->TextInx++] =  0x01;
@@ -621,7 +659,8 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsig
 }
 
 void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamInfo, OffTarget **OffTargetHead, OffTarget *offTargetToAdd){
-    offTargetToAdd->ChromosomeNum = Chromosome->ChromosomeNum;
+    //offTargetToAdd->ChromosomeName = (char *)malloc((strlen(Chromosome->Name)+1)*sizeof(char));
+    strncpy(offTargetToAdd->ChromosomeName, Chromosome->Name, strlen(Chromosome->Name));
     offTargetToAdd->Strand = GuideInfo->Strand;
     offTargetToAdd->Guide = (char *)malloc((GuideInfo->Length+1)*sizeof(char));
     strcpy(offTargetToAdd->Guide, GuideInfo->Read);
@@ -733,8 +772,8 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
     }
     fprintf(OutputFile, "\n");
     while (OffTargetHead != NULL) {
-        fprintf(OutputFile,"Chr%-7d\t%10d\t%c\t%-*s\t%-*s\t%-*s\t%-8d\t%-8d\t%-8d",
-                OffTargetHead->ChromosomeNum, OffTargetHead->ChromosomePosition, OffTargetHead->Strand,
+        fprintf(OutputFile,"%-10s\t%10d\t%c\t%-*s\t%-*s\t%-*s\t%-8d\t%-8d\t%-8d",
+                OffTargetHead->ChromosomeName, OffTargetHead->ChromosomePosition, OffTargetHead->Strand,
                 GuideLengthPrint, OffTargetHead->Guide, GuideLengthPrint, OffTargetHead->SiteAlignment,
                 GuideLengthPrint, OffTargetHead->GuideAlignment,
                 OffTargetHead->Distance, OffTargetHead->Mismatch, OffTargetHead->Bulge);
@@ -749,7 +788,7 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
     printf("BitOffinder v5.1  (c)\n");
     printf("Output Summery:\n");
     printf("Number of guides (2 Strand per guide):%d\n", NumOfGuides/2);
-    printf("Number of chromosomes: %d\n", NumOfChromosomes);
+    printf("Number of chromosomes: %d\n", num_of_chromosome_files+1);
     if (max_pam_mismatch != -1) {
         printf("PAM: %s\n", PamRead);
     }
@@ -776,6 +815,7 @@ void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, O
     while (OffTargetHead != NULL) {
         OffTarget *tmp = (OffTarget *) OffTargetHead->NextOffTarget;
         free(OffTargetHead->Guide);
+        //free(OffTargetHead->ChromosomeName);
         free(OffTargetHead->SiteAlignment);
         free(OffTargetHead->GuideAlignment);
         if (max_pam_mismatch != -1){
