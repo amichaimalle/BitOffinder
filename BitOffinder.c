@@ -89,7 +89,7 @@ int max_mismatch = -1;
 int max_bulge = -1;
 int max_distance = -1;
 // file & memory parameters
-char *output_file_path = "./pam_output.txt";
+char *output_file_path = "./BitOffinder.hits.txt";
 char *chromosome_file_path = "./chr38/";
 char *guide_file_path = "./guides.txt";
 char** chromosome_file_names;
