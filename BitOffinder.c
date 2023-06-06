@@ -762,30 +762,29 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
         printf("Error opening file output file");
         exit(1);
     }
-    int GuideLengthPrint = (int)strlen(OffTargetHead->Guide)+max_bulge;
-    fprintf(OutputFile,"%*s\t%-*s\t%-*s\t%-*s\t%-*s\t%-*s\t%-s\t%-s\t%-s",
-            10,"Chromosome",10,"Index",6,"Strand",GuideLengthPrint,"Guide",
-            GuideLengthPrint,"SiteAlignment",GuideLengthPrint,"GuideAlignment",
+    fprintf(OutputFile,"%s,%s,%s,%s,%s,%s,%s,%s,%s",
+            "Chromosome","Index","Strand","Guide",
+            "SiteAlignment","GuideAlignment",
             "Distance","Mismatch","Bulge");
     if (max_pam_mismatch != -1) {
-        fprintf(OutputFile,"\t%-s\t%-s","PamAlignment","PamMismatch");
+        fprintf(OutputFile,"%s,%s","PamAlignment","PamMismatch");
     }
     fprintf(OutputFile, "\n");
     while (OffTargetHead != NULL) {
-        fprintf(OutputFile,"%-10s\t%10d\t%c\t%-*s\t%-*s\t%-*s\t%-8d\t%-8d\t%-8d",
+        fprintf(OutputFile,"%s,%d,%c,%s,%s,%s,%d,%d,%d",
                 OffTargetHead->ChromosomeName, OffTargetHead->ChromosomePosition, OffTargetHead->Strand,
-                GuideLengthPrint, OffTargetHead->Guide, GuideLengthPrint, OffTargetHead->SiteAlignment,
-                GuideLengthPrint, OffTargetHead->GuideAlignment,
+                OffTargetHead->Guide, OffTargetHead->SiteAlignment,
+                OffTargetHead->GuideAlignment,
                 OffTargetHead->Distance, OffTargetHead->Mismatch, OffTargetHead->Bulge);
         if (max_pam_mismatch != -1) {
-            fprintf(OutputFile,"\t%-s\t%-d",OffTargetHead->PamAlignment,OffTargetHead->PamMismatch);
+            fprintf(OutputFile,",%s,%d",OffTargetHead->PamAlignment,OffTargetHead->PamMismatch);
         }
         fprintf(OutputFile, "\n");
         OffTargetHead = (OffTarget *) OffTargetHead->NextOffTarget;
     }
     fclose(OutputFile);
     printf("\n");
-    printf("BitOffinder v5.1  (c)\n");
+    printf("BitOffinder v5.3  (c)\n");
     printf("Output Summery:\n");
     printf("Number of guides (2 Strand per guide):%d\n", NumOfGuides/2);
     printf("Number of chromosomes: %d\n", num_of_chromosome_files+1);
@@ -841,7 +840,7 @@ void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, O
 //--------------------------------------------
 
 void printReadMe() {
-    printf("BitOffinder v5.1  (c)\n"
+    printf("BitOffinder v5.3  (c)\n"
             "NAME\n"
             "\tOffFinder - a tool for finding off-targets of CRISPR/Cas9 guide RNAs\n\n"
             "SYNOPSIS\n"
