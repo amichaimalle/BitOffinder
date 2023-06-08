@@ -29,8 +29,8 @@
 
 //structs
 typedef struct {
-    int ChromosomePosition;
-    //int ChromosomePosition;
+    int StartingPosition;
+    int EndingPosition;
     int Distance;
     int Bulge;
     int Mismatch;
@@ -124,7 +124,7 @@ int CheckForAlignment(Guide *GuideInfo, OffTarget *offTarget, int ChromosomeInx)
 int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsigned long MaskBitVector, int GuideInx, int SiteInx, int CurDistance, int CurMismatch, int CurBulge, int AlignmentInx);
 void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamInfo, OffTarget **OffTargetHead, OffTarget *offTargetToAdd);
 void DecodePam(Pam *PamInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget);
-void DecodeAlignment(Guide *GuideInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget);
+void DecodeAlignment(Guide *GuideInfo, Pam *PamInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget);
 // Post Processing
 void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead);
 void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, OffTarget *OffTargetHead);
@@ -672,7 +672,7 @@ void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamIn
     offTargetToAdd->Strand = GuideInfo->Strand;
     offTargetToAdd->Guide = (char *)malloc((GuideInfo->Length+1)*sizeof(char));
     strcpy(offTargetToAdd->Guide, GuideInfo->Read);
-    DecodeAlignment(GuideInfo, Chromosome, offTargetToAdd);
+    DecodeAlignment(GuideInfo, PamInfo, Chromosome, offTargetToAdd);
     if (max_pam_mismatch != -1) {
         offTargetToAdd->PamMismatch = PamInfo->CurrentMismatch;
         DecodePam(PamInfo, Chromosome, offTargetToAdd);
@@ -698,15 +698,15 @@ void DecodePam(Pam *PamInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget){
     offTarget->PamAlignment[PamInfo->Length] = '\0';
 }
 
-void DecodeAlignment(Guide *GuideInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget){
+void DecodeAlignment(Guide *GuideInfo, Pam *PamInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget){
     int AlignmentLength = 0, BulgeOffset = 0, AlignmentInx;
     int GuideInx = 0;
     char SiteAlignment[GuideInfo->Length + offTarget->Bulge + 1];
     char GuideAlignment[GuideInfo->Length + offTarget->Bulge + 1];
     for (int i=0; i<GuideInfo->Length; i++){
-        if (GuideInfo->EncodeAlignment[AlignmentLength]==3){
+        if (GuideInfo->EncodeAlignment[AlignmentLength]==3){ // Deletion - char only in DNA
             i--;
-        } else if (GuideInfo->EncodeAlignment[AlignmentLength]==4) {
+        } else if (GuideInfo->EncodeAlignment[AlignmentLength]==4) { // Insertion - char only in sgRNA
             BulgeOffset++;
         }
         AlignmentLength++;
@@ -747,7 +747,10 @@ void DecodeAlignment(Guide *GuideInfo, ChromosomeInfo *Chromosome, OffTarget *of
         GuideInfo->EncodeAlignment[j]=0;
     }
     GuideAlignment[AlignmentLength] = '\0';
-    offTarget->ChromosomePosition = (GuideInfo->Strand == '+') ? Chromosome->Length - Chromosome->TextInx - AlignmentLength + BulgeOffset : Chromosome->TextInx;
+    offTarget->StartingPosition += (GuideInfo->Strand == '-') ? Chromosome->TextInx - PamInfo->Length :
+                                                                Chromosome->Length - Chromosome->TextInx - AlignmentLength + BulgeOffset;
+    offTarget->EndingPosition   += (GuideInfo->Strand == '-') ? Chromosome->TextInx + AlignmentLength -BulgeOffset -1 :
+                                                                Chromosome->Length - Chromosome->TextInx + PamInfo->Length -1;
     offTarget->SiteAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char));
     offTarget->GuideAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char));
     strcpy(offTarget->GuideAlignment, GuideAlignment);
@@ -770,8 +773,8 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
         printf("Error opening file output file");
         exit(1);
     }
-    fprintf(OutputFile,"%s,%s,%s,%s,%s,%s,%s,%s,%s",
-            "Chromosome","Index","Strand","Guide",
+    fprintf(OutputFile,"%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+            "Chromosome","StartingPosition","EndingPosition","Strand","Guide",
             "SiteAlignment","GuideAlignment",
             "Distance","Mismatch","Bulge");
     if (max_pam_mismatch != -1) {
@@ -779,8 +782,8 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
     }
     fprintf(OutputFile, "\n");
     while (OffTargetHead != NULL) {
-        fprintf(OutputFile,"%s,%d,%c,%s,%s,%s,%d,%d,%d",
-                OffTargetHead->ChromosomeName, OffTargetHead->ChromosomePosition, OffTargetHead->Strand,
+        fprintf(OutputFile,"%s,%d,%d,%c,%s,%s,%s,%d,%d,%d",
+                OffTargetHead->ChromosomeName, OffTargetHead->StartingPosition,OffTargetHead->EndingPosition, OffTargetHead->Strand,
                 OffTargetHead->Guide, OffTargetHead->SiteAlignment,
                 OffTargetHead->GuideAlignment,
                 OffTargetHead->Distance, OffTargetHead->Mismatch, OffTargetHead->Bulge);
