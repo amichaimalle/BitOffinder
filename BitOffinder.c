@@ -30,6 +30,7 @@
 //structs
 typedef struct {
     int ChromosomePosition;
+    //int ChromosomePosition;
     int Distance;
     int Bulge;
     int Mismatch;
@@ -657,7 +658,7 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsig
             }
         }
         return -1;
-        }
+        //}
     }
     //update OffTarget data
     offTarget->Bulge = CurBulge;
