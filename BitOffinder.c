@@ -96,6 +96,7 @@ char** chromosome_file_names;
 int num_of_chromosome_files = 0;
 long int max_chromosome_size = DEFAULT_MAX_CHROMOSOME_SIZE;
 
+
 //--------------------------------------------
 //        Prototypes
 //--------------------------------------------
@@ -203,7 +204,6 @@ int main(int argc, char* argv[]){
 
     chromosome_file_names = getFileNamesInDirectory(chromosome_file_path, &num_of_chromosome_files);
 
-    //while(ReadChromosome(Chromosome) == 0){ // for each chromosome
     for (int chrNum = 0; chrNum < num_of_chromosome_files; chrNum++) {
         ReadChromosome(Chromosome, chromosome_file_names[chrNum]);
         chr_start = clock();
@@ -617,38 +617,46 @@ int CheckForAlignment(Guide *GuideInfo, OffTarget *offTarget, int ChromosomeInx)
 
 int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsigned long MaskBitVector, int GuideInx, int SiteInx, int CurDistance, int CurMismatch, int CurBulge, int AlignmentInx){
     while (!(MaskBitVector & (MsbMaskVectorConst >> GuideInfo->Length))) { // while not reached the end of the guide
+        //if ((GuideInfo->LastBitapMatrices[MatrixInx]->MatchVectors[CurDistance] & MaskBitVector) == 0) { //Match
+        //    GuideInx++;
+        //    SiteInx--;
+        //    MaskBitVector = MaskBitVector >> 1;
+        //    MatrixInx=(MatrixInx+1)%(GuideInfo->Length+max_bulge);
+        //    GuideInfo->EncodeAlignment[AlignmentInx++] = 1; // Match
+        //} else { // check for mismatch
         if ((GuideInfo->LastBitapMatrices[MatrixInx]->MatchVectors[CurDistance] & MaskBitVector) == 0) { //Match
-            GuideInx++;
-            SiteInx--;
-            MaskBitVector = MaskBitVector >> 1;
-            MatrixInx=(MatrixInx+1)%(GuideInfo->Length+max_bulge);
-            GuideInfo->EncodeAlignment[AlignmentInx++] = 1; // Match
-        } else { // check for mismatch
-            if (CurMismatch < max_mismatch &  0 < CurDistance &
-                (GuideInfo->LastBitapMatrices[MatrixInx]->MismatchVectors[CurDistance] & MaskBitVector) == 0) {
-                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+max_bulge), MaskBitVector >> 1,
-                                    GuideInx+1, SiteInx-1, CurDistance-1, CurMismatch+1, CurBulge, AlignmentInx+1)==0){
-                    GuideInfo->EncodeAlignment[AlignmentInx] = 2; // Mismatch
-                    return 0;
-                }
-            } // check for deletion
-            if (CurBulge < max_bulge & 0 < CurDistance &
-                (GuideInfo->LastBitapMatrices[MatrixInx]->DeletionVectors[CurDistance] & MaskBitVector) == 0) {
-                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+max_bulge), MaskBitVector,
-                                    GuideInx, SiteInx, CurDistance-1, CurMismatch, CurBulge+1, AlignmentInx+1)==0){
-                    GuideInfo->EncodeAlignment[AlignmentInx] = 3; // Deletion
-                    return 0;
-                }
-            } // check for insertion
-            if (CurBulge < max_bulge & 0 < CurDistance &
-                (GuideInfo->LastBitapMatrices[MatrixInx]->InsertionVectors[CurDistance] & MaskBitVector) == 0) {
-                if (TargetTraceBack(GuideInfo, offTarget, MatrixInx, MaskBitVector >> 1,
-                                    GuideInx+1, SiteInx, CurDistance-1, CurMismatch, CurBulge+1, AlignmentInx+1)==0){
-                    GuideInfo->EncodeAlignment[AlignmentInx] = 4; // Insertion
-                    return 0;
-                }
+            if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx + 1) % (GuideInfo->Length + max_bulge),
+                                MaskBitVector >> 1,
+                                GuideInx + 1, SiteInx - 1, CurDistance, CurMismatch, CurBulge, AlignmentInx + 1) == 0) {
+                GuideInfo->EncodeAlignment[AlignmentInx] = 1; // Match
+                return 0;
             }
-            return -1;
+        }
+        if (CurMismatch < max_mismatch &  0 < CurDistance &
+            (GuideInfo->LastBitapMatrices[MatrixInx]->MismatchVectors[CurDistance] & MaskBitVector) == 0) {
+            if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+max_bulge), MaskBitVector >> 1,
+                                GuideInx+1, SiteInx-1, CurDistance-1, CurMismatch+1, CurBulge, AlignmentInx+1)==0){
+                GuideInfo->EncodeAlignment[AlignmentInx] = 2; // Mismatch
+                return 0;
+            }
+        } // check for deletion
+        if (CurBulge < max_bulge & 0 < CurDistance &
+            (GuideInfo->LastBitapMatrices[MatrixInx]->DeletionVectors[CurDistance] & MaskBitVector) == 0) {
+            if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+max_bulge), MaskBitVector,
+                                GuideInx, SiteInx, CurDistance-1, CurMismatch, CurBulge+1, AlignmentInx+1)==0){
+                GuideInfo->EncodeAlignment[AlignmentInx] = 3; // Deletion
+                return 0;
+            }
+        } // check for insertion
+        if (CurBulge < max_bulge & 0 < CurDistance &
+            (GuideInfo->LastBitapMatrices[MatrixInx]->InsertionVectors[CurDistance] & MaskBitVector) == 0) {
+            if (TargetTraceBack(GuideInfo, offTarget, MatrixInx, MaskBitVector >> 1,
+                                GuideInx+1, SiteInx, CurDistance-1, CurMismatch, CurBulge+1, AlignmentInx+1)==0){
+                GuideInfo->EncodeAlignment[AlignmentInx] = 4; // Insertion
+                return 0;
+            }
+        }
+        return -1;
         }
     }
     //update OffTarget data
@@ -659,7 +667,6 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsig
 }
 
 void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamInfo, OffTarget **OffTargetHead, OffTarget *offTargetToAdd){
-    //offTargetToAdd->ChromosomeName = (char *)malloc((strlen(Chromosome->Name)+1)*sizeof(char));
     strncpy(offTargetToAdd->ChromosomeName, Chromosome->Name, strlen(Chromosome->Name));
     offTargetToAdd->Strand = GuideInfo->Strand;
     offTargetToAdd->Guide = (char *)malloc((GuideInfo->Length+1)*sizeof(char));
@@ -784,7 +791,7 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
     }
     fclose(OutputFile);
     printf("\n");
-    printf("BitOffinder v5.3  (c)\n");
+    printf("BitOffinder v5.4  (c)\n");
     printf("Output Summery:\n");
     printf("Number of guides (2 Strand per guide):%d\n", NumOfGuides/2);
     printf("Number of chromosomes: %d\n", num_of_chromosome_files+1);
@@ -840,7 +847,7 @@ void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, O
 //--------------------------------------------
 
 void printReadMe() {
-    printf("BitOffinder v5.3  (c)\n"
+    printf("BitOffinder v5.4  (c)\n"
             "NAME\n"
             "\tOffFinder - a tool for finding off-targets of CRISPR/Cas9 guide RNAs\n\n"
             "SYNOPSIS\n"
