@@ -1,5 +1,4 @@
 #include <stdio.h>
-//#include <strings.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -40,7 +39,7 @@ typedef struct {
     char *SiteAlignment;
     char *GuideAlignment;
     char *PamAlignment;
-    char ChromosomeName[MAX_FILE_NAME_SIZE];
+    char *ChromosomeName;
     struct OffTarget *NextOffTarget;
 } OffTarget;
 
@@ -667,7 +666,8 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsig
 }
 
 void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamInfo, OffTarget **OffTargetHead, OffTarget *offTargetToAdd){
-    strncpy(offTargetToAdd->ChromosomeName, Chromosome->Name, strlen(Chromosome->Name));
+    offTargetToAdd->ChromosomeName = (char *)malloc((strlen(Chromosome->Name)+1)*sizeof(char));
+    strcpy(offTargetToAdd->ChromosomeName, Chromosome->Name);
     offTargetToAdd->Strand = GuideInfo->Strand;
     offTargetToAdd->Guide = (char *)malloc((GuideInfo->Length+1)*sizeof(char));
     strcpy(offTargetToAdd->Guide, GuideInfo->Read);
@@ -797,7 +797,7 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
     printf("BitOffinder v5.4  (c)\n");
     printf("Output Summery:\n");
     printf("Number of guides (2 Strand per guide):%d\n", NumOfGuides/2);
-    printf("Number of chromosomes: %d\n", num_of_chromosome_files+1);
+    printf("Number of chromosomes: %d\n", num_of_chromosome_files);
     if (max_pam_mismatch != -1) {
         printf("PAM: %s\n", PamRead);
     }
@@ -824,7 +824,7 @@ void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, O
     while (OffTargetHead != NULL) {
         OffTarget *tmp = (OffTarget *) OffTargetHead->NextOffTarget;
         free(OffTargetHead->Guide);
-        //free(OffTargetHead->ChromosomeName);
+        free(OffTargetHead->ChromosomeName);
         free(OffTargetHead->SiteAlignment);
         free(OffTargetHead->GuideAlignment);
         if (max_pam_mismatch != -1){
