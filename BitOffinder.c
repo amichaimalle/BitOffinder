@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <strings.h>
+//#include <strings.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -103,8 +103,7 @@ long int max_chromosome_size = DEFAULT_MAX_CHROMOSOME_SIZE;
 //--------------------------------------------
 // Genome Read
 char** getFileNamesInDirectory(const char* directoryPath, int* fileCount);
-//FILE *OpenNextChromosomeFile();
-//int ReadChromosomeFile(ChromosomeInfo *Chromosome);
+FILE *OpenFastaFile(ChromosomeInfo *Chromosome, const char *filePath);
 int ReadChromosome(ChromosomeInfo *Chromosome, char *ChrFileName);
 //Pam Read and Initialize
 void ReadPamInfo(char *PamRead, Pam *PamInfo);
@@ -747,9 +746,9 @@ void DecodeAlignment(Guide *GuideInfo, Pam *PamInfo, ChromosomeInfo *Chromosome,
         GuideInfo->EncodeAlignment[j]=0;
     }
     GuideAlignment[AlignmentLength] = '\0';
-    offTarget->StartingPosition += (GuideInfo->Strand == '-') ? Chromosome->TextInx - PamInfo->Length :
+    offTarget->StartingPosition = (GuideInfo->Strand == '-') ? Chromosome->TextInx - PamInfo->Length :
                                                                 Chromosome->Length - Chromosome->TextInx - AlignmentLength + BulgeOffset;
-    offTarget->EndingPosition   += (GuideInfo->Strand == '-') ? Chromosome->TextInx + AlignmentLength -BulgeOffset -1 :
+    offTarget->EndingPosition   = (GuideInfo->Strand == '-') ? Chromosome->TextInx + AlignmentLength -BulgeOffset -1 :
                                                                 Chromosome->Length - Chromosome->TextInx + PamInfo->Length -1;
     offTarget->SiteAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char));
     offTarget->GuideAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char));
@@ -778,7 +777,7 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
             "SiteAlignment","GuideAlignment",
             "Distance","Mismatch","Bulge");
     if (max_pam_mismatch != -1) {
-        fprintf(OutputFile,"%s,%s","PamAlignment","PamMismatch");
+        fprintf(OutputFile,",%s,%s","PamAlignment","PamMismatch");
     }
     fprintf(OutputFile, "\n");
     while (OffTargetHead != NULL) {
